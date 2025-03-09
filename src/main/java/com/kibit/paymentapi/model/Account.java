@@ -1,4 +1,4 @@
-package com.kibit.paymentapi;
+package com.kibit.paymentapi.model;
 
 import jakarta.persistence.*;
 import lombok.Getter;

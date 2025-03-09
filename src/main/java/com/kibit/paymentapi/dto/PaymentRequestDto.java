@@ -1,4 +1,4 @@
-package com.kibit.paymentapi;
+package com.kibit.paymentapi.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

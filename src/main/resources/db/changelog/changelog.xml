@@ -25,6 +25,9 @@
             <column name="id" type="BIGSERIAL">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="idempotency_key" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
             <column name="sender_account" type="VARCHAR(50)">
                 <constraints nullable="false"/>
             </column>

@@ -9,42 +9,47 @@ import com.kibit.paymentapi.model.Account;
 import com.kibit.paymentapi.model.Transaction;
 import com.kibit.paymentapi.repository.AccountRepository;
 import com.kibit.paymentapi.repository.TransactionRepository;
-import com.kibit.paymentapi.util.PaymentUtil;
 import jakarta.transaction.Transactional;
-import org.springframework.dao.OptimisticLockingFailureException;
+import java.math.BigDecimal;
+import java.time.Instant;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-import java.time.Instant;
 
 import static com.kibit.paymentapi.util.PaymentUtil.createResponse;
-
 
 @Service
 public class PaymentService {
 
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final String paymentTopic;
 
 
     public PaymentService(AccountRepository accountRepository,
-                          TransactionRepository transactionRepository) {
+                          TransactionRepository transactionRepository,
+                          KafkaTemplate<String, String> kafkaTemplate,
+                          @Value("${payment.kafka.topic}") String paymentTopic) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
+        this.kafkaTemplate = kafkaTemplate;
+        this.paymentTopic = paymentTopic;
     }
 
-    @Retryable(
-            retryFor = OptimisticLockingFailureException.class,
-            backoff = @Backoff(delay = 100),
-            recover = "fallback"
-    )
     @Transactional
     public ResponseEntity<TransactionResponseDto> processPayment(PaymentRequestDto request) {
 
+        // Check if transaction already exists
         if (transactionRepository.existsByIdempotencyKey(request.getIdempotencyKey())) {
-            throw new IdempotencyKeyExistsException("Idempotency key already exists");
+            throw new IdempotencyKeyExistsException("Transactions must be unique");
+        }
+
+        // Check if amount is positive
+        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.valueOf(0)) < 1) {
+            throw new PaymentProcessingException("Amount must be greater than zero");
         }
 
         // Fetch sender and recipient accounts
@@ -56,7 +61,7 @@ public class PaymentService {
 
         // Check if sender has enough balance
         if (sender.getBalance().compareTo(request.getAmount()) < 0) {
-            throw new InsufficientBalanceException("Insufficient balance to process the transaction.");
+            throw new InsufficientBalanceException("Insufficient balance to process the transaction");
         }
 
         // Deduct amount from sender
@@ -78,12 +83,17 @@ public class PaymentService {
 
         transactionRepository.save(transaction);
 
+        // Send payment notification via Kafka
+        sendPaymentNotification(transaction);
+
         return createResponse(true, HttpStatus.OK, transaction.toString());
     }
 
-    private ResponseEntity<TransactionResponseDto> fallback() {
-        return createResponse(false,
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "Something unexpected happened, the transaction was not successful.");
+    private void sendPaymentNotification(Transaction transaction) {
+        String message = "Payment of " + transaction.getAmount() +
+                " from " + transaction.getSenderAccount() +
+                " to " + transaction.getRecipientAccount() + " was successful.";
+
+        kafkaTemplate.send(paymentTopic, message);
     }
 }

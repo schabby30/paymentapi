@@ -24,8 +24,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -129,22 +127,25 @@ class PaymentServiceTest {
 
     @Test
     void testProcessPayment_ConcurrentRequests() throws InterruptedException {
-        when(transactionRepository.existsByIdempotencyKey(any())).thenReturn(false);
+        when(transactionRepository.existsByIdempotencyKey(any())).thenReturn(false).thenReturn(true);
         when(accountRepository.findByAccountNumberAndLockRow(request.getSenderAccount())).thenReturn(Optional.of(sender));
         when(accountRepository.findByAccountNumber(request.getRecipientAccount())).thenReturn(Optional.of(recipient));
         when(transactionRepository.save(any())).thenReturn(new Transaction());
 
-        ExecutorService executor = Executors.newFixedThreadPool(10);
-        for (int i = 0; i < 10; i++) {
-            executor.execute(() -> {
-                try {
-                    paymentService.processPayment(request);
-                } catch (Exception ignored) {
-                }
-            });
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(10)) {
+            for (int i = 0; i < 10; i++) {
+                executor.execute(() -> {
+                    try {
+                        paymentService.processPayment(request);
+                    } catch (Exception ignored) {
+                    }
+                });
+            }
         }
-        executor.shutdown();
-        assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+
+        assertEquals(BigDecimal.valueOf(900), sender.getBalance());
+        assertEquals(BigDecimal.valueOf(600), recipient.getBalance());
 
         verify(transactionRepository, atLeastOnce()).existsByIdempotencyKey(any());
         verify(accountRepository, atLeastOnce()).findByAccountNumberAndLockRow(any());

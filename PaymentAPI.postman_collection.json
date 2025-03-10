@@ -1,0 +1,40 @@
+{
+	"info": {
+		"_postman_id": "2c48599f-4076-40c4-8b06-5ec2f979dbb6",
+		"name": "PaymentAPI",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "15034329",
+		"_collection_link": "https://schabby-team.postman.co/workspace/schabby-workspace~96f3d444-e294-4a7b-b15a-d308ad1ce7df/collection/15034329-2c48599f-4076-40c4-8b06-5ec2f979dbb6?action=share&source=collection_link&creator=15034329"
+	},
+	"item": [
+		{
+			"name": "requestTransaction",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"idempotencyKey\":\"86ab5740-2945-23b3-a33b-16bebc546fe7\",\r\n    \"senderAccount\":\"ACC12345\",\r\n    \"recipientAccount\":\"ACC67890\",\r\n    \"amount\":\"100.21\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "localhost:8082/paymentservice/api/process_payment",
+					"host": [
+						"localhost"
+					],
+					"port": "8082",
+					"path": [
+						"paymentservice",
+						"api",
+						"process_payment"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
